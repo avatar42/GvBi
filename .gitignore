@@ -1,0 +1,8 @@
+/target/
+/logs/
+*.jar
+*.war
+*.ear
+*.class
+*.out
+
