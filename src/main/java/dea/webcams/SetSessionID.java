@@ -127,7 +127,7 @@ public class SetSessionID {
 	 * @param request
 	 *            - the request to execute
 	 * @param context
-	 *            TODO
+	 *            TODO ignored currently
 	 * @return - the response to this request
 	 * @throws ClientProtocolException
 	 * @throws IOException
@@ -253,9 +253,9 @@ public class SetSessionID {
 		return responseStr;
 	}
 
-	public void replaceID(String newId) {
+	public void replaceID(String newId) throws RegistryException {
+		WindowsRegistry reg = WindowsRegistry.getInstance();
 		try {
-			WindowsRegistry reg = WindowsRegistry.getInstance();
 			List<String> keys = reg.readStringSubKeys(HKey.HKLM, PREF_KEY);
 			for (String key : keys) {
 				String camIp = reg.readString(HKey.HKLM, PREF_KEY + "\\" + key,
@@ -268,11 +268,40 @@ public class SetSessionID {
 					log.info("Writing " + key + ":" + camIp + ":" + newurl);
 					reg.writeStringValue(HKey.HKLM, PREF_KEY + "\\" + key,
 							"ip_path", newurl);
+					oldurl = reg.readString(HKey.HKLM, PREF_KEY + "\\" + key,
+							"ip_path");
+					if (newurl.equals(oldurl)) {
+						log.info("Updated    " + key + ":" + camIp + ":"
+								+ oldurl);
+
+					} else {
+						log.info("Failed     " + key + ":" + camIp + ":"
+								+ oldurl);
+					}
 				}
 			}
 		} catch (RegistryException e) {
 			log.error("Failed to replace session ID in registry", e);
+			String path = "";
+			try {
+				List<String> keys = reg.readStringSubKeys(HKey.HKLM, path);
+				StringTokenizer st = new StringTokenizer(PREF_KEY, "/\\");
+				StringBuilder sb = new StringBuilder();
+				while (st.hasMoreTokens()) {
+					if (sb.length() > 0) {
+						sb.append("\\");
+					}
+					sb.append(st.nextToken());
+					path = sb.toString();
+					keys = reg.readStringSubKeys(HKey.HKLM, path);
+					log.error("Read " + path + ":" + keys);
+				}
+			} catch (RegistryException e1) {
+				log.error("Failed to read:" + path, e1);
+			}
+			throw e;
 		}
+		log.debug("Leaving replaceID()");
 	}
 
 	protected HttpUriRequest initRequest(String url) throws URISyntaxException,
@@ -438,7 +467,7 @@ public class SetSessionID {
 		return respHeaders;
 	}
 
-	public void run() {
+	public void run() throws RegistryException {
 		log.info("Checking cam:" + ip);
 		for (int i = 0; i < retries; i++) {
 			String rsp = login();
@@ -478,6 +507,7 @@ public class SetSessionID {
 						if (start > -1) {
 							end = s.indexOf('"', start);
 							replaceID(s.substring(start, end));
+							log.error("Updated:" + s);
 						}
 					}
 					break;
@@ -498,12 +528,18 @@ public class SetSessionID {
 	}
 
 	public static void main(String[] args) throws BackingStoreException {
-		if (args.length < 3 || !args[0].contains(".")) {
-			System.err
-					.println("USAGE:SetSessionID IP_of_server login password");
-		} else {
-			SetSessionID s = new SetSessionID(args[0], args[1], args[2]);
-			s.run();
+		try {
+			if (args.length < 3 || !args[0].contains(".")) {
+				System.err
+						.println("USAGE:SetSessionID IP_of_server login password");
+			} else {
+				SetSessionID s = new SetSessionID(args[0], args[1], args[2]);
+				s.run();
+				System.out.println("Done");
+			}
+		} catch (Exception e) {
+			System.err.println("Failed to update registry");
+			System.exit(1);
 		}
 	}
 }
