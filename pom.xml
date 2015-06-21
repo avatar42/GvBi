@@ -8,6 +8,7 @@
 	<description>Resets GV session id in BlueIris URLs</description>
 	<properties>
 		<jdk.version>1.7</jdk.version>
+		<output.jar>B:/exp/cams/BlueIris/GvBi.jar</output.jar>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -127,8 +128,8 @@
 						</goals>
 						<configuration>
 							<tasks>
-								<delete file="B:/exp/GvBi.jar" />
-								<copy file="${project.build.directory}/GvBi.jar" tofile="B:/exp/GvBi.jar" />
+								<delete file="${output.jar}" />
+								<copy file="${project.build.directory}/GvBi.jar" tofile="${output.jar}" />
 							</tasks>
 						</configuration>
 					</execution>
