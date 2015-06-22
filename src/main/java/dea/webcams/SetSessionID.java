@@ -2,6 +2,7 @@ package dea.webcams;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -298,6 +299,22 @@ public class SetSessionID {
 				}
 			} catch (RegistryException e1) {
 				log.error("Failed to read:" + path, e1);
+				int i = path.lastIndexOf('\\');
+				String parent = path.substring(0, i);
+				log.error(" children of " + parent);
+				List<String> keys = reg.readStringSubKeys(HKey.HKLM, parent);
+				for (String key : keys) {
+					if (!path.endsWith(key)) {
+						try {
+							List<String> ckeys = reg.readStringSubKeys(
+									HKey.HKLM, parent + "\\" + key);
+							log.error(key + " subs:" + ckeys);
+						} catch (Exception e2) {
+							log.error("Could not get subs of " + parent + "\\"
+									+ key);
+						}
+					}
+				}
 			}
 			throw e;
 		}
@@ -467,7 +484,8 @@ public class SetSessionID {
 		return respHeaders;
 	}
 
-	public void run() throws RegistryException {
+	public void run() throws IllegalArgumentException, IllegalAccessException,
+			InvocationTargetException {
 		log.info("Checking cam:" + ip);
 		for (int i = 0; i < retries; i++) {
 			String rsp = login();
@@ -506,8 +524,7 @@ public class SetSessionID {
 						start = start + rtsp.length() + 7;
 						if (start > -1) {
 							end = s.indexOf('"', start);
-							replaceID(s.substring(start, end));
-							log.error("Updated:" + s);
+							RegUtil.replaceID(ip, s.substring(start, end));
 						}
 					}
 					break;
@@ -538,6 +555,7 @@ public class SetSessionID {
 				System.out.println("Done");
 			}
 		} catch (Exception e) {
+			e.printStackTrace();
 			System.err.println("Failed to update registry");
 			System.exit(1);
 		}
