@@ -47,10 +47,6 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.github.sarxos.winreg.HKey;
-import com.github.sarxos.winreg.RegistryException;
-import com.github.sarxos.winreg.WindowsRegistry;
-
 public class SetSessionID {
 	public static final String URL_ENCODING = "utf-8";
 	public static final String WWW_AUTHENTICATE = "WWW-Authenticate";
@@ -252,73 +248,6 @@ public class SetSessionID {
 			shutdownClient();
 		}
 		return responseStr;
-	}
-
-	public void replaceID(String newId) throws RegistryException {
-		WindowsRegistry reg = WindowsRegistry.getInstance();
-		try {
-			List<String> keys = reg.readStringSubKeys(HKey.HKLM, PREF_KEY);
-			for (String key : keys) {
-				String camIp = reg.readString(HKey.HKLM, PREF_KEY + "\\" + key,
-						"ip");
-				if (ip.equals(camIp)) {
-					String oldurl = reg.readString(HKey.HKLM, PREF_KEY + "\\"
-							+ key, "ip_path");
-					log.info("Read    " + key + ":" + camIp + ":" + oldurl);
-					String newurl = oldurl.substring(0, 8) + newId;
-					log.info("Writing " + key + ":" + camIp + ":" + newurl);
-					reg.writeStringValue(HKey.HKLM, PREF_KEY + "\\" + key,
-							"ip_path", newurl);
-					oldurl = reg.readString(HKey.HKLM, PREF_KEY + "\\" + key,
-							"ip_path");
-					if (newurl.equals(oldurl)) {
-						log.info("Updated    " + key + ":" + camIp + ":"
-								+ oldurl);
-
-					} else {
-						log.info("Failed     " + key + ":" + camIp + ":"
-								+ oldurl);
-					}
-				}
-			}
-		} catch (RegistryException e) {
-			log.error("Failed to replace session ID in registry", e);
-			String path = "";
-			try {
-				List<String> keys = reg.readStringSubKeys(HKey.HKLM, path);
-				StringTokenizer st = new StringTokenizer(PREF_KEY, "/\\");
-				StringBuilder sb = new StringBuilder();
-				while (st.hasMoreTokens()) {
-					if (sb.length() > 0) {
-						sb.append("\\");
-					}
-					sb.append(st.nextToken());
-					path = sb.toString();
-					keys = reg.readStringSubKeys(HKey.HKLM, path);
-					log.error("Read " + path + ":" + keys);
-				}
-			} catch (RegistryException e1) {
-				log.error("Failed to read:" + path, e1);
-				int i = path.lastIndexOf('\\');
-				String parent = path.substring(0, i);
-				log.error(" children of " + parent);
-				List<String> keys = reg.readStringSubKeys(HKey.HKLM, parent);
-				for (String key : keys) {
-					if (!path.endsWith(key)) {
-						try {
-							List<String> ckeys = reg.readStringSubKeys(
-									HKey.HKLM, parent + "\\" + key);
-							log.error(key + " subs:" + ckeys);
-						} catch (Exception e2) {
-							log.error("Could not get subs of " + parent + "\\"
-									+ key);
-						}
-					}
-				}
-			}
-			throw e;
-		}
-		log.debug("Leaving replaceID()");
 	}
 
 	protected HttpUriRequest initRequest(String url) throws URISyntaxException,

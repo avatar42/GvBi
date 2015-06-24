@@ -17,11 +17,6 @@
 			<version>4.3.6</version>
 		</dependency>
 		<dependency>
-			<groupId>com.github.sarxos</groupId>
-			<artifactId>windows-registry-util</artifactId>
-			<version>0.3</version>
-		</dependency>
-		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
 			<version>1.5.2</version>
