@@ -1,5 +1,6 @@
 package dea.webcams;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
@@ -474,11 +475,23 @@ public class SetSessionID {
 	}
 
 	public static void main(String[] args) throws BackingStoreException {
+		File lock = new File("GvBi.lock");
 		try {
 			if (args.length < 3 || !args[0].contains(".")) {
 				System.err
 						.println("USAGE:SetSessionID IP_of_server login password");
 			} else {
+				if (lock.exists()) {
+					System.err.println("GvBi.lock exists");
+					System.exit(0);
+
+				}
+				if (!lock.createNewFile()) {
+					System.err.println("GvBi.lock could not be created");
+					System.exit(2);
+
+				}
+				lock.deleteOnExit();
 				SetSessionID s = new SetSessionID(args[0], args[1], args[2]);
 				s.run();
 				System.out.println("Done");
