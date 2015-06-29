@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
+import java.net.ConnectException;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -62,7 +63,6 @@ public class SetSessionID {
 
 	protected final Logger log = LoggerFactory.getLogger(getClass());
 
-	protected int retries = 2;
 	private String ip;
 	protected URL httpsURL;
 	protected URL loginURL;
@@ -86,6 +86,8 @@ public class SetSessionID {
 	protected HttpContext context = new BasicHttpContext();
 	protected String sessionId;
 	protected String urlMethod = HttpPost.METHOD_NAME;
+	protected int maxTries = 3;
+	protected int tryWait = 1000;
 
 	public SetSessionID(String ip, String login, String password) {
 		this.ip = ip;
@@ -139,7 +141,27 @@ public class SetSessionID {
 
 		log.info("Doing " + request.getMethod() + " to " + request.getURI());
 		checkHeaders(request);
-		response = httpclient.execute(request); // , context);
+		int tries = 0;
+		while (response == null && tries < maxTries) {
+			tries++;
+			try {
+				response = httpclient.execute(request); // , context);
+			} catch (ConnectException e) {
+				if (tries == maxTries) {
+					log.error("Failed to connect " + tries
+							+ " times. Giving up.");
+					throw e;
+				}
+
+				log.error(e.getMessage() + " will retry in " + (tryWait / 1000)
+						+ "seconds");
+				try {
+					Thread.sleep(tryWait);
+				} catch (InterruptedException e1) {
+					e1.printStackTrace();
+				}
+			}
+		}
 		checkHeaders(response, request.getURI());
 		respCode = response.getStatusLine().getStatusCode();
 		return response;
@@ -417,58 +439,55 @@ public class SetSessionID {
 	public void run() throws IllegalArgumentException, IllegalAccessException,
 			InvocationTargetException {
 		log.info("Checking cam:" + ip);
-		for (int i = 0; i < retries; i++) {
-			String rsp = login();
-			if (rsp.contains("IDS_WEB_ID_PWD_ERROR")) {
-				log.info(rsp);
-				log.error("Login failed");
+		String rsp = login();
+		if (rsp.contains("IDS_WEB_ID_PWD_ERROR")) {
+			log.info(rsp);
+			log.error("Login failed");
 
+		} else {
+			// check old software type
+			int end = rsp.indexOf("</title>");
+			if (end > -1) {
+				int start = rsp.lastIndexOf(" ", end);
+				if (start > -1) {
+					sessionId = rsp.substring(start + 1, end);
+				}
+			}
+			if (sessionId == null || sessionId.contains("<title>")) {
+				// check new software type
+				int start = rsp.indexOf(GV_NEW_KEY_MARKER);
+				if (start > -1) {
+					start += GV_NEW_KEY_MARKER.length();
+					end = rsp.indexOf("\"", start);
+					if (start > -1) {
+						sessionId = rsp.substring(start, end);
+					}
+				}
+
+			}
+			String s = executeRequest();
+
+			if (respCode == HttpURLConnection.HTTP_OK) {
+				log.info(s);
+				String rtsp = "rtsp://" + ip + ":8554/";
+				int start = s.indexOf(rtsp);
+				if (start > -1) {
+					start = start + rtsp.length() + 7;
+					if (start > -1) {
+						end = s.indexOf('"', start);
+						RegUtil.replaceID(ip, s.substring(start, end));
+					}
+				}
 			} else {
-				// check old software type
-				int end = rsp.indexOf("</title>");
-				if (end > -1) {
-					int start = rsp.lastIndexOf(" ", end);
-					if (start > -1) {
-						sessionId = rsp.substring(start + 1, end);
+				StringBuilder sb = new StringBuilder();
+				if (getRespHeaders() != null) {
+					sb.append("Response Headers:<br>");
+					for (Header header : getRespHeaders()) {
+						sb.append(header.getName()).append(":")
+								.append(header.getValue()).append("<br>");
 					}
 				}
-				if (sessionId == null || sessionId.contains("<title>")) {
-					// check new software type
-					int start = rsp.indexOf(GV_NEW_KEY_MARKER);
-					if (start > -1) {
-						start += GV_NEW_KEY_MARKER.length();
-						end = rsp.indexOf("\"", start);
-						if (start > -1) {
-							sessionId = rsp.substring(start, end);
-						}
-					}
-
-				}
-				String s = executeRequest();
-
-				if (respCode == HttpURLConnection.HTTP_OK) {
-					log.info(s);
-					String rtsp = "rtsp://" + ip + ":8554/";
-					int start = s.indexOf(rtsp);
-					if (start > -1) {
-						start = start + rtsp.length() + 7;
-						if (start > -1) {
-							end = s.indexOf('"', start);
-							RegUtil.replaceID(ip, s.substring(start, end));
-						}
-					}
-					break;
-				} else {
-					StringBuilder sb = new StringBuilder();
-					if (getRespHeaders() != null) {
-						sb.append("Response Headers:<br>");
-						for (Header header : getRespHeaders()) {
-							sb.append(header.getName()).append(":")
-									.append(header.getValue()).append("<br>");
-						}
-					}
-					log.info(sb.toString());
-				}
+				log.info(sb.toString());
 			}
 		}
 		log.warn("read url");
